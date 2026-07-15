@@ -1,123 +1,107 @@
 import streamlit as st
 import pandas as pd
-import datetime
-import os
 import plotly.express as px
+import os
 
-# --- PAGE CONFIGURATION ---
-st.set_page_config(page_title="Personal Expense Tracker", page_icon="💰", layout="wide")
+# Page title & layout configuration
+st.set_page_config(page_title="Personal Expense Tracker", layout="wide")
 
-# --- FILE PATH FOR DATA ---
-DATA_FILE = "expenses.csv"
+# 📂 File setup and schema initialization
+CSV_FILE = "expenses.csv"
+COLUMNS = ["Date", "Category", "Amount", "UserKey"]
 
-# Function to load data
 def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
+    if os.path.exists(CSV_FILE):
+        try:
+            df = pd.read_csv(CSV_FILE)
+            # Schema ensure korchi jate column mismatch na hoy
+            for col in COLUMNS:
+                if col not in df.columns:
+                    df[col] = ""
+            return df
+        except Exception:
+            return pd.DataFrame(columns=COLUMNS)
     else:
-        # Create empty dataframe if file doesn't exist
-        return pd.DataFrame(columns=["Date", "Category", "Amount (INR)", "Description"])
+        return pd.DataFrame(columns=COLUMNS)
 
-# Function to save data
-def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
-
-# Load existing expenses
+# Initial load
 df = load_data()
 
-# --- APP HEADER ---
-st.title("💰 Personal Expense Tracker")
-st.write("A simple dashboard to track and analyze your daily expenses.")
-st.markdown("---")
+# --- SIDEBAR: USER AUTH & INPUTS ---
+st.sidebar.header("🔑 User Access")
+# Password type mask input box
+user_key = st.sidebar.text_input("Enter your Unique Secret Code:", type="password", help="Type your personal key to see and add your data.")
 
-# --- LAYOUT: LEFT SIDEBAR FOR INPUT, RIGHT FOR DASHBOARD ---
-col1, col2 = st.columns([1, 2])
+st.sidebar.markdown("---")
+st.sidebar.header("💸 Add New Expense")
 
-# --- 1. EXPENSE ENTRY FORM (LEFT COLUMN) ---
-with col1:
-    st.header("📍 Add New Expense")
-    
-    with st.form("expense_form", clear_on_submit=True):
-        date = st.date_input("Date", datetime.date.today())
-        
-        # Category placeholder structure
-        category = st.selectbox(
-            "Category", 
-            ["Food & Drinks", "Travel/Commute", "Education/Books", "Entertainment", "Shopping", "Others"],
-            index=None,
-            placeholder="Choose a category..."
-        )
-        
-        # Amount default value structure
-        amount = st.number_input("Amount (INR)", min_value=0.0, value=0.0, step=10.0)
-        description = st.text_input("Short Description (Optional)")
-        
-        submit_btn = st.form_submit_button("Add Expense")
-        
-        if submit_btn:
-            # Check validation rules
-            if category is None:
-                st.error("Please select a category first!")
-            elif amount <= 0.0:
-                st.error("Please enter an amount greater than 0!")
-            else:
-                # Append new row logic
-                new_row = {
-                    "Date": str(date),
-                    "Category": category,
-                    "Amount (INR)": amount,
-                    "Description": description
-                }
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                save_data(df)
-                st.success("Expense added successfully!")
-                st.rerun()
+# Input fields
+user_date_input = st.sidebar.date_input("Date")
+category = st.sidebar.selectbox("Category", ["Food", "Travel", "Shopping", "Bills", "Entertainment", "Others"])
+amount = st.sidebar.number_input("Amount (INR)", min_value=1.0, step=10.0)
 
-# --- 2. ANALYTICS & VISUALIZATION (RIGHT COLUMN) ---
-with col2:
-    st.header("📊 Expense Dashboard")
-    
-    if df.empty:
-        st.info("No expenses recorded yet. Start by adding one in the left panel!")
+if st.sidebar.button("Add Expense"):
+    if user_key.strip() == "":
+        st.sidebar.error("⚠️ Age ekta Unique Secret Code likho, tarpor expense save koro!")
     else:
-        # Quick KPI Metrics
-        total_expense = df["Amount (INR)"].sum()
-        total_items = len(df)
+        # Create single row entry dataframe
+        new_data = {
+            "Date": str(user_date_input),
+            "Category": category,
+            "Amount": amount,
+            "UserKey": user_key.strip()
+        }
+        new_df = pd.DataFrame([new_data])
         
-        metric_col1, metric_col2 = st.columns(2)
-        metric_col1.metric("Total Money Spent", f"₹ {total_expense:,.2f}")
-        metric_col2.metric("Total Transactions", total_items)
-        
-        st.markdown("---")
-        
-        # Category-wise Breakdown Chart
-        st.subheader("Category-wise Distribution")
-        category_sum = df.groupby("Category")["Amount (INR)"].sum().reset_index()
-        
-        # Interactive Pie Chart using Plotly
-        fig = px.pie(category_sum, values="Amount (INR)", names="Category", 
-                     hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-        st.plotly_chart(fig, use_container_width=True)
+        # Write mode dynamic setup
+        if not os.path.exists(CSV_FILE):
+            new_df.to_csv(CSV_FILE, index=False)
+        else:
+            new_df.to_csv(CSV_FILE, mode='a', header=False, index=False)
+            
+        st.sidebar.success("🎉 Expense perfectly saved!")
+        st.rerun()
 
-# --- 3. RAW DATA VIEW (BOTTOM SECTION) ---
-st.markdown("---")
-st.header("📋 All Transactions")
+# --- MAIN DASHBOARD AREA ---
+st.title("📊 Personal Expense Dashboard")
 
-if not df.empty:
-    # Sort by date (newest first)
-    df_sorted = df.iloc[::-1]
-    st.dataframe(df_sorted, use_container_width=True)
-    
-    # Download Button
-    df_download = df.copy()
-    if not df_download.empty:
-        df_download['Date'] = pd.to_datetime(df_download['Date']).dt.strftime('%?y-%m-%d')
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Data as Excel/CSV",
-        data=csv,
-        file_name='my_expenses.csv',
-        mime='text/csv',
-    )
+if user_key.strip() == "":
+    st.info("👋 Welcome! Ba-dike (Sidebar) giye tomar **Unique Secret Code-ta type koro** jate tomar custom dashboard open hoy.")
 else:
-    st.write("No transaction history available.")
+    # Filter dataset for specific user
+    df_filtered = df[df["UserKey"] == user_key.strip()] if not df.empty else pd.DataFrame(columns=COLUMNS)
+    
+    # 1. Main visual block
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("📝 Transaction Details")
+        if df_filtered.empty:
+            st.info("Kono record khuje paowa jayni. Sidebar intermediate data form update kore first expense entry koro!")
+        else:
+            # Sort by date reverse
+            df_display = df_filtered.copy()
+            df_display = df_display.sort_values(by="Date", ascending=False)
+            st.dataframe(df_display[["Date", "Category", "Amount"]], use_container_width=True)
+            
+            # Download options
+            csv_data = df_display[["Date", "Category", "Amount"]].to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download My History (CSV)",
+                data=csv_data,
+                file_name=f"{user_key}_expenses.csv",
+                mime="text/csv"
+            )
+            
+    with col2:
+        st.subheader("📈 Visualization Analysis")
+        if not df_filtered.empty:
+            total_spent = df_filtered["Amount"].sum()
+            st.metric(label="Total Money Spent", value=f"₹ {total_spent:,.2f}")
+            
+            # Pie Chart
+            chart_data = df_filtered.groupby("Category")["Amount"].sum().reset_index()
+            fig = px.pie(chart_data, values="Amount", names="Category", hole=0.4, title="Category-wise Distribution")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.write("Graph review korar jonno tracking entry blank ache.")
