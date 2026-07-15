@@ -6,16 +6,15 @@ import os
 # Page configuration
 st.set_page_config(page_title="Personal Expense Tracker", layout="wide")
 
-# File storage setup (Permanent storage on Streamlit Server)
+# 📂 Permanent Database File Setup on Server Disk
 CSV_FILE = "expenses.csv"
 COLUMNS = ["Date", "Category", "Amount", "UserKey"]
 
-# Function to safely load data from CSV
 def load_data():
     if os.path.exists(CSV_FILE):
         try:
             df = pd.read_csv(CSV_FILE)
-            # Ensure columns are standard
+            # Schema consistency checking
             for col in COLUMNS:
                 if col not in df.columns:
                     df[col] = ""
@@ -23,10 +22,10 @@ def load_data():
         except Exception:
             return pd.DataFrame(columns=COLUMNS)
     else:
-        # Create empty template if file is missing
+        # File na thakle blank schema toiri korbe runtime-e
         return pd.DataFrame(columns=COLUMNS)
 
-# Initial dataset load
+# Initial dataset loading from CSV
 df = load_data()
 
 # --- SIDEBAR: USER ACCESS & INPUTS ---
@@ -43,16 +42,14 @@ st.sidebar.header("💸 Add New Expense")
 # Input fields
 user_date_input = st.sidebar.date_input("Date")
 
-# 🎯 Default Selection Placeholder
 category = st.sidebar.selectbox(
     "Category", 
     ["Select Category", "Food", "Travel", "Shopping", "Bills", "Entertainment", "Others"]
 )
 
-# 🎯 Default 0.00 Amount Placeholder
 amount = st.sidebar.number_input("Amount (INR)", min_value=0.00, value=0.00, step=10.0, format="%.2f")
 
-# --- ADD EXPENSE BUTTON LOGIC ---
+# --- SAVE TRIGGERS (ADD EXPENSE BUTTON) ---
 if st.sidebar.button("Add Expense"):
     if user_key == "":
         st.sidebar.error("⚠️ Please enter a Secret Code first before saving any expense data!")
@@ -61,7 +58,7 @@ if st.sidebar.button("Add Expense"):
     elif amount <= 0:
         st.sidebar.error("⚠️ Amount must be greater than 0.00!")
     else:
-        # Data preparation
+        # Data dictionary creation
         new_data = {
             "Date": str(user_date_input),
             "Category": category,
@@ -70,14 +67,14 @@ if st.sidebar.button("Add Expense"):
         }
         new_df = pd.DataFrame([new_data])
         
-        # 🎯 FORCE CSV FILE WRITE PERMISSION:
+        # 🎯 PERMANENT WRITE TO DISK FILE
         try:
             if not os.path.exists(CSV_FILE) or os.stat(CSV_FILE).st_size == 0:
                 new_df.to_csv(CSV_FILE, index=False)
             else:
                 new_df.to_csv(CSV_FILE, mode='a', header=False, index=False)
             
-            st.sidebar.success("🎉 Expense tracked successfully!")
+            st.sidebar.success("🎉 Expense tracked permanently!")
             st.rerun()  # Refresh screen to update database immediately
         except Exception as e:
             st.sidebar.error(f"❌ Storage Error: {str(e)}")
@@ -88,7 +85,7 @@ st.title("📊 Personal Expense Dashboard")
 if user_key == "":
     st.info("👋 Welcome! Please enter your **Unique Secret Code** in the sidebar on the left panel to display your private dashboard.")
 else:
-    # Load freshly updated data from CSV
+    # Freshly reload the data from CSV
     df_fresh = load_data()
     
     # Strictly filter rows by current user secret key (Data Privacy Separation)
@@ -97,7 +94,7 @@ else:
     else:
         df_filtered = pd.DataFrame(columns=COLUMNS)
     
-    # Dashboard Grid Columns
+    # Dashboard Columns Setup
     col1, col2 = st.columns([1, 1])
     
     with col1:
@@ -105,14 +102,14 @@ else:
         if df_filtered.empty:
             st.info(f"No records found yet for code '{user_key}'. Use the sidebar input form to log your first data entry!")
         else:
-            # Sort with latest entries first
+            # Sort latest transaction first
             df_display = df_filtered.copy()
             df_display = df_display.sort_values(by="Date", ascending=False)
             
-            # Show standard raw parameters to user (UserKey column is kept hidden)
+            # Show filtered parameters to user (UserKey column is hidden)
             st.dataframe(df_display[["Date", "Category", "Amount"]], use_container_width=True)
             
-            # CSV Download Option
+            # Streamlit download pipeline
             csv_data = df_display[["Date", "Category", "Amount"]].to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download My History (CSV)",
