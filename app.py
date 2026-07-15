@@ -109,6 +109,9 @@ if not df.empty:
     st.dataframe(df_sorted, use_container_width=True)
     
     # Download Button
+    df_download = df.copy()
+    if not df_download.empty:
+        df_download['Date'] = pd.to_datetime(df_download['Date']).dt.strftime('%?y-%m-%d')
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Download Data as Excel/CSV",
